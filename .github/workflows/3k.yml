@@ -1,4 +1,4 @@
-name: 3K-Darts an Silbermine
+ame: 3K-Darts an Silbermine
 on:
   schedule:
     - cron: '*/15 * * * *'
@@ -12,11 +12,18 @@ jobs:
           SCM_KEY: ${{ secrets.SCM_KEY }}
         run: |
           B=https://backend4.3k-darts.com/2k-backend4/api/v1/frontend
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
           echo '{}' > d.json
           for p in event/28055 event/28055/phase/0/round/0/table event/28055/phase/47479 event/28055/phase/47479/round/0 event/28086 event/28086/phase/0/round/0/table event/28086/phase/47529 event/28086/phase/47529/round/0; do
-            if curl -fsS --max-time 20 -H 'Origin: https://portal.3k-darts.com' -H 'Referer: https://portal.3k-darts.com/' "$B/$p" -o r.json; then
+            code=$(curl -sS --compressed --max-time 20 -A "$UA" -H 'Accept: application/json, text/plain, */*' -H 'Accept-Language: de-DE,de;q=0.9,en;q=0.8' -H 'Origin: https://portal.3k-darts.com' -H 'Referer: https://portal.3k-darts.com/' -H 'Sec-Fetch-Site: same-site' -H 'Sec-Fetch-Mode: cors' -H 'Sec-Fetch-Dest: empty' -o r.json -w '%{http_code}' "$B/$p" || echo 000)
+            echo "$code $p"
+            if [ "$code" = 200 ] && jq -e . r.json > /dev/null 2>&1; then
               jq --arg p "$p" --slurpfile r r.json '. + {($p): $r[0]}' d.json > t.json && mv t.json d.json
+            else
+              head -c 300 r.json 2> /dev/null; echo
             fi
           done
+          n=$(jq 'length' d.json); echo "$n Abrufe ok"
+          [ "$n" -gt 0 ] || { echo "Nichts zu senden – 3K hat alles abgelehnt"; exit 1; }
           jq '{paths: .}' d.json > send.json
-          curl -fsS -X POST -H 'Content-Type: application/json' -H "X-SCM-Key: $SCM_KEY" --data-binary @send.json https://dartclub-silbermine.de/wp-json/silbermine/v1/3k
+          curl -sS --fail-with-body -X POST -H 'Content-Type: application/json' -H "X-SCM-Key: $SCM_KEY" --data-binary @send.json https://dartclub-silbermine.de/wp-json/silbermine/v1/3k
