@@ -1,0 +1,22 @@
+name: 3K-Darts an Silbermine
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Daten holen und senden
+        env:
+          SCM_KEY: ${{ secrets.SCM_KEY }}
+        run: |
+          B=https://backend4.3k-darts.com/2k-backend4/api/v1/frontend
+          echo '{}' > d.json
+          for p in event/28055 event/28055/phase/0/round/0/table event/28055/phase/47479 event/28055/phase/47479/round/0 event/28086 event/28086/phase/0/round/0/table event/28086/phase/47529 event/28086/phase/47529/round/0; do
+            if curl -fsS --max-time 20 -H 'Origin: https://portal.3k-darts.com' -H 'Referer: https://portal.3k-darts.com/' "$B/$p" -o r.json; then
+              jq --arg p "$p" --slurpfile r r.json '. + {($p): $r[0]}' d.json > t.json && mv t.json d.json
+            fi
+          done
+          jq '{paths: .}' d.json > send.json
+          curl -fsS -X POST -H 'Content-Type: application/json' -H "X-SCM-Key: $SCM_KEY" --data-binary @send.json https://dartclub-silbermine.de/wp-json/silbermine/v1/3k
